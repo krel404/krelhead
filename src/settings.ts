@@ -20,9 +20,10 @@ export class SettingsStore {
       if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
     }
   }
-  muted(guild: string | null, channel: string | null): boolean {
+  muted(guild: string | null, channel: string | null, parentChannel?: string | null): boolean {
     if (!guild) return false;
-    return (channel ? this.data.channels[`${guild}:${channel}`] : undefined) ?? this.data.guilds[guild] ?? false;
+    return (channel ? this.data.channels[`${guild}:${channel}`] : undefined)
+      ?? (parentChannel ? this.data.channels[`${guild}:${parentChannel}`] : undefined) ?? this.data.guilds[guild] ?? false;
   }
   set(guild: string, channel: string | null, muted: boolean | null): void {
     const next: Settings = { guilds: { ...this.data.guilds }, channels: { ...this.data.channels } };

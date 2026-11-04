@@ -1,5 +1,5 @@
 export function inviteUrl(applicationId: string): string {
-  return `https://discord.com/oauth2/authorize?client_id=${applicationId}&scope=bot%20applications.commands&permissions=52224`;
+  return `https://discord.com/oauth2/authorize?client_id=${applicationId}&scope=bot%20applications.commands&permissions=309237763072`;
 }
 
 export function required(name: string): string {

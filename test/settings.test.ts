@@ -21,6 +21,12 @@ test('persists settings, isolates servers, and supports channel overrides and re
     store.set('1', null, null);
     assert.equal(store.muted('1', '2'), false);
     assert.equal(store.muted(null, null), false);
+    store.set('1', '2', true);
+    assert.equal(store.muted('1', '4', '2'), true);
+    store.set('1', '4', false);
+    assert.equal(store.muted('1', '4', '2'), false);
+    store.set('1', '4', null);
+    assert.equal(store.muted('1', '4', '2'), true);
     writeFileSync(path, '{"guilds":{"1":"false"},"channels":{}}');
     assert.throws(() => new SettingsStore(path), /Invalid guilds/);
   } finally { rmSync(dir, { recursive: true, force: true }); }

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { MessageFlags, PermissionFlagsBits, type Interaction } from 'discord.js';
+import { ChannelType, MessageFlags, PermissionFlagsBits, type Interaction } from 'discord.js';
 import { Bot } from '../src/bot.js';
 import { commands } from '../src/commands.js';
 import { SettingsStore } from '../src/settings.js';
@@ -14,13 +14,15 @@ function interaction(commandName: string, options: Record<string, string> = {}) 
   const calls: { method: string; payload: any }[] = [];
   const input = {
     commandName, guildId: '1', channelId: '2', user: { id: '3' },
+    channel: { id: '2', parentId: 'parent', isThread: () => true,
+      send: async (payload: any) => { calls.push({ method: 'threadSend', payload }); return { url: 'https://discord.com/channels/1/2/4' }; } },
     memberPermissions: { has: (_permission: bigint) => false },
     options: { getString: (key: string) => options[key] ?? null, getFocused: () => options.query ?? '' },
     deferred: false, replied: false, responded: false,
     isAutocomplete: () => false, isStringSelectMenu: () => false, isChatInputCommand: () => true,
     isMessageComponent: () => false, isRepliable: () => true,
     reply: async (payload: any) => { input.replied = true; calls.push({ method: 'reply', payload }); },
-    deferReply: async () => { input.deferred = true; calls.push({ method: 'deferReply', payload: null }); },
+    deferReply: async (payload: any) => { input.deferred = true; calls.push({ method: 'deferReply', payload }); },
     deferUpdate: async () => { input.deferred = true; calls.push({ method: 'deferUpdate', payload: null }); },
     editReply: async (payload: any) => { calls.push({ method: 'editReply', payload }); },
     followUp: async (payload: any) => { calls.push({ method: 'followUp', payload }); },
@@ -47,8 +49,8 @@ function harness() {
 
 test('all command definitions serialize with valid descriptions and query autocomplete', () => {
   const schemas = commands.map(command => command.toJSON());
-  assert.equal(schemas.length, 9);
-  assert.equal(new Set(schemas.map(s => s.name)).size, 9);
+  assert.equal(schemas.length, 13);
+  assert.equal(new Set(schemas.map(s => s.name)).size, 13);
   assert(schemas.every(s => s.description.length <= 100));
 });
 
@@ -76,7 +78,9 @@ test('search defers before fetching, returns an image, and only its owner can ch
     const search = interaction('search', { query: 'Hogger' });
     await h.bot.handle(search.value);
     assert.equal(search.calls[0]?.method, 'deferReply');
-    const payload = search.calls[1]!.payload;
+    assert.equal(search.calls[0]!.payload.flags, MessageFlags.Ephemeral);
+    const payload = search.calls.find(call => call.method === 'threadSend')!.payload;
+    assert.match(search.calls.at(-1)!.payload.content, /View Syl’s reply/);
     assert.equal(payload.files.length, 1);
     const customId = payload.components[0].toJSON().components[0].custom_id;
     const picker = interaction('');
@@ -106,7 +110,41 @@ test('source failures become a user-facing error after deferral', async () => {
     const lookup = interaction('search', { query: 'Hogger' });
     await h.bot.handle(lookup.value);
     assert.equal(lookup.calls.at(-1)?.method, 'editReply');
-    assert.match(lookup.calls.at(-1)!.payload.content, /temporarily unavailable/);
+    assert.match(lookup.calls.find(call => call.method === 'threadSend')!.payload.content, /temporarily unavailable/);
+  } finally { h.cleanup(); }
+});
+
+test('a lookup in main chat creates a thread and acknowledges it only ephemerally', async () => {
+  const h = harness();
+  try {
+    const lookup = interaction('npc', { query: 'Hogger' });
+    let created = 0;
+    let sent = 0;
+    lookup.input.channel.isThread = () => false;
+    lookup.input.channel.send = async () => { throw new Error('Must not send to main chat'); };
+    Object.assign(lookup.input.channel, { type: ChannelType.GuildText, threads: { create: async () => {
+      created++;
+      return { send: async (payload: any) => { sent++; assert.equal(payload.files.length, 1); return { url: 'https://discord.com/channels/1/thread/result' }; } };
+    } } });
+    await h.bot.handle(lookup.value);
+    assert.equal(created, 1); assert.equal(sent, 1);
+    assert.equal(lookup.calls[0]!.payload.flags, MessageFlags.Ephemeral);
+    assert.match(lookup.calls.at(-1)!.payload.content, /\/thread\/result/);
+    assert.equal(lookup.calls.at(-1)!.payload.files, undefined);
+  } finally { h.cleanup(); }
+});
+
+test('failed thread creation reports a private error without fetching data or posting a main-channel card', async () => {
+  const h = harness();
+  try {
+    const lookup = interaction('npc', { query: 'Hogger' });
+    lookup.input.channel.isThread = () => false;
+    Object.assign(lookup.input.channel, { type: ChannelType.GuildText, threads: { create: async () => { throw new Error('Missing permissions'); } } });
+    await h.bot.handle(lookup.value);
+    assert.equal(lookup.calls[0]!.payload.flags, MessageFlags.Ephemeral);
+    assert.equal(lookup.calls.at(-1)?.method, 'editReply');
+    assert.equal(lookup.calls.some(call => call.method === 'threadSend'), false);
+    assert.equal(h.searches(), 0);
   } finally { h.cleanup(); }
 });
 

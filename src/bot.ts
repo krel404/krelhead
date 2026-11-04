@@ -1,20 +1,23 @@
 import { randomBytes } from 'node:crypto';
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, MessageFlags, PermissionFlagsBits,
-  StringSelectMenuBuilder, type Interaction, type ChatInputCommandInteraction, type StringSelectMenuInteraction } from 'discord.js';
+  StringSelectMenuBuilder, type Interaction, type ChatInputCommandInteraction, type StringSelectMenuInteraction, type MessageCreateOptions } from 'discord.js';
 import { entityTypes, entityUrl, isEntityType, labels, searchUrl, SourceError, UserError, type SearchResult } from './model.js';
 import { tooltipMessage } from './tooltip.js';
 import { SettingsStore } from './settings.js';
 import { Wowhead } from './wowhead.js';
+import type { Conversation } from './conversation.js';
+import { commandThread } from './threads.js';
 
 type Selection = { userId: string; results: SearchResult[]; query: string; expires: number };
 export class Bot {
   private selections = new Map<string, Selection>();
-  constructor(private source: Wowhead, private settings: SettingsStore) {}
+  constructor(private source: Wowhead, private settings: SettingsStore, private conversation?: Conversation) {}
 
   async handle(interaction: Interaction): Promise<void> {
+    let deliver: ((payload: MessageCreateOptions) => Promise<void>) | undefined;
     try {
       if (interaction.isAutocomplete()) {
-        if (this.settings.muted(interaction.guildId, interaction.channelId)) { await interaction.respond([]); return; }
+        if (this.settings.muted(interaction.guildId, interaction.channelId, interaction.channel?.isThread() ? interaction.channel.parentId : undefined)) { await interaction.respond([]); return; }
         const query = String(interaction.options.getFocused()).trim();
         if (query.length < 2) { await interaction.respond([]); return; }
         const type = isEntityType(interaction.commandName) ? interaction.commandName : interaction.options.getString('type');
@@ -39,16 +42,24 @@ export class Bot {
         await this.select(interaction); return;
       }
       if (!interaction.isChatInputCommand()) return;
+      if (await this.conversation?.command(interaction)) return;
+      if (['remember', 'memories', 'forget', 'resetcontext'].includes(interaction.commandName)) {
+        await interaction.reply({ content: 'Conversation and memory controls are disabled until the bot is configured with an OpenAI key.', flags: MessageFlags.Ephemeral }); return;
+      }
       if (interaction.commandName === 'help') {
         await interaction.reply({ flags: MessageFlags.Ephemeral, content: [
-          '**Krelhead · WoW Forever**',
+          '**Syl · WoW Forever**',
+          'Mention me directly or reply to one of my messages to chat, ask for a tooltip, or research a game question.',
+          'Public answers and lookup cards go into threads. Mention me or reply to me inside the thread for follow-ups.',
+          '`/remember fact:...`, `/memories`, `/forget id:...` — manage facts saved for you in this channel. They can inform my public replies here.',
+          '`/resetcontext` — clear recent context. Unsaved context expires after 30 minutes; I don’t automatically save facts.',
           '`/search query:Hogger` — search items, NPCs, spells, and quests.',
           '`/item query:Thunderfury` — limit the search; `/npc`, `/spell`, and `/quest` work the same way.',
           '`/spell query:116` — look up an ID directly.',
           '`/tooltip query:item:19019` — `/tooltip` and `/tt` are aliases of `/search`.',
           'You can also paste a Wowhead **Forever** URL. Autocomplete shows matching names and spell ranks.',
           'The top match is shown immediately. Use the result picker to view another match.',
-          '`/setup` — enable or mute lookups for a server (Manage Server) or channel (Manage Channels). Channel preferences override server preferences.',
+          '`/setup` — enable or mute Syl and lookups for a server (Manage Server) or channel (Manage Channels). Channel preferences override server preferences.',
           '**Source:** https://www.wowhead.com/forever/database',
           'Forever data is still incomplete. Missing entries are never substituted with Classic or Retail data.',
         ].join('\n'), allowedMentions: { parse: [] } });
@@ -56,28 +67,38 @@ export class Bot {
       }
       if (interaction.commandName === 'setup') { await this.setup(interaction); return; }
       if (!['search', 'tooltip', 'tt', ...entityTypes].includes(interaction.commandName)) return;
-      if (this.settings.muted(interaction.guildId, interaction.channelId)) {
+      if (this.settings.muted(interaction.guildId, interaction.channelId, interaction.channel?.isThread() ? interaction.channel.parentId : undefined)) {
         await interaction.reply({ content: 'Lookups are muted here. A moderator can change this with /setup.', flags: MessageFlags.Ephemeral });
         return;
       }
-      await interaction.deferReply();
+      await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+      const thread = await commandThread(interaction);
+      deliver = async payload => {
+        if (this.settings.muted(interaction.guildId, thread.id, thread.parentId)) {
+          await interaction.editReply({ content: 'Syl is muted here.' }); return;
+        }
+        const response = await thread.send({ ...payload, ...(!payload.embeds?.length ? { flags: MessageFlags.SuppressEmbeds } : {}),
+          allowedMentions: { parse: [], repliedUser: false } });
+        await interaction.editReply({ content: `[View Syl’s reply](${response.url})`, flags: MessageFlags.SuppressEmbeds, allowedMentions: { parse: [] } });
+      };
       const query = interaction.options.getString('query', true);
       const type = isEntityType(interaction.commandName) ? interaction.commandName : interaction.options.getString('type');
       const results = await this.source.search(query, isEntityType(type) ? type : undefined);
       if (!results.length) {
-        await interaction.editReply({ content: `No matching ${isEntityType(type) ? labels[type].toLowerCase() : 'entry'} found in Wowhead’s Forever database. Data may not be available yet.\n[Search Wowhead directly](${searchUrl(query)})`, allowedMentions: { parse: [] } });
+        await deliver({ content: `No matching ${isEntityType(type) ? labels[type].toLowerCase() : 'entry'} found in Wowhead’s Forever database. Data may not be available yet.\n[Search Wowhead directly](${searchUrl(query)})`, allowedMentions: { parse: [] } });
         return;
       }
       const first = results[0]!;
       const tooltip = await this.source.tooltip(first);
       const payload = await tooltipMessage(tooltip);
       const token = this.remember(interaction.user.id, results, query);
-      await interaction.editReply({ ...payload, components: this.components(token, results, first, query) });
+      await deliver({ ...payload, components: this.components(token, results, first, query) });
     } catch (error) {
       const content = error instanceof UserError || error instanceof SourceError ? error.message : 'Something went wrong with this lookup. Please try again.';
       console.error('Interaction failed:', error instanceof Error ? error.message : 'Unknown error');
       try {
-        if (interaction.isAutocomplete()) {
+        if (deliver) await deliver({ content });
+        else if (interaction.isAutocomplete()) {
           if (!interaction.responded) await interaction.respond([]);
         } else if (interaction.isRepliable()) {
           if (interaction.deferred || interaction.replied) {
@@ -126,7 +147,7 @@ export class Bot {
     if (selection.userId !== interaction.user.id) {
       await interaction.reply({ content: 'Run your own /search to choose a result.', flags: MessageFlags.Ephemeral }); return;
     }
-    if (this.settings.muted(interaction.guildId, interaction.channelId)) {
+    if (this.settings.muted(interaction.guildId, interaction.channelId, interaction.channel?.isThread() ? interaction.channel.parentId : undefined)) {
       await interaction.reply({ content: 'Lookups are muted here.', flags: MessageFlags.Ephemeral }); return;
     }
     const result = selection.results.find(r => `${r.type}:${r.id}` === interaction.values[0]);
