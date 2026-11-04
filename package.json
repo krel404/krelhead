@@ -1,0 +1,31 @@
+{
+  "name": "krelhead",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "A WoW Forever Discord lookup bot powered by Wowhead",
+  "engines": {
+    "node": ">=22.18.0"
+  },
+  "scripts": {
+    "dev": "node --env-file-if-exists=.env --import tsx --watch src/index.ts",
+    "build": "tsc",
+    "start": "node --env-file-if-exists=.env dist/src/index.js",
+    "register": "node --env-file-if-exists=.env --import tsx src/register.ts",
+    "invite": "node --env-file-if-exists=.env --import tsx src/invite.ts",
+    "test": "node --import tsx --test test/*.test.ts",
+    "check": "tsc --noEmit",
+    "smoke": "node --import tsx scripts/smoke.ts"
+  },
+  "dependencies": {
+    "cheerio": "^1.1.2",
+    "discord.js": "^14.28.0",
+    "domhandler": "^5.0.3",
+    "sharp": "^0.35.5"
+  },
+  "devDependencies": {
+    "@types/node": "^22.18.0",
+    "tsx": "^4.20.0",
+    "typescript": "^5.9.3"
+  }
+}
