@@ -73,6 +73,7 @@ export class MemoryStore {
   }
 
   reset(scope: Scope): void { this.recent.delete(scopeKey(scope)); }
+  resetGuild(guildId: string): void { for (const key of this.recent.keys()) if (key.startsWith(`${guildId}:`)) this.recent.delete(key); }
   prune(): void { for (const [key, value] of this.recent) if (value.expires <= this.now()) this.recent.delete(key); }
   close(): void { this.db.close(); this.recent.clear(); }
 }

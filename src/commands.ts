@@ -2,7 +2,15 @@ import { SlashCommandBuilder } from 'discord.js';
 import { entityTypes, isEntityType, labels } from './model.js';
 
 export const commands = [
-  new SlashCommandBuilder().setName('remember').setDescription('Save a fact for your conversations here; Syl may use it in public replies')
+  new SlashCommandBuilder().setName('character').setDescription('Share and manage your character snapshots with this server').setDMPermission(false)
+    .addSubcommand(command => command.setName('import').setDescription('Share your character level, gear and talents with this server')
+      .addAttachmentOption(option => option.setName('file').setDescription('TomeSnapshot.lua from your character’s SavedVariables, or a snapshot export file').setRequired(true)))
+    .addSubcommand(command => command.setName('list').setDescription('List your linked characters and snapshot age'))
+    .addSubcommand(command => command.setName('connect').setDescription('Get a private desktop-uploader token to share snapshots with this server'))
+    .addSubcommand(command => command.setName('disconnect').setDescription('Revoke your desktop-uploader token for this server'))
+    .addSubcommand(command => command.setName('forget').setDescription('Delete a character’s snapshots and revoke your uploader token')
+      .addStringOption(option => option.setName('id').setDescription('Character ID shown by /character list').setRequired(true).setMaxLength(100))),
+  new SlashCommandBuilder().setName('remember').setDescription('Save a fact for your conversations here; Tome may use it in public replies')
     .setDMPermission(false).addStringOption(option => option.setName('fact').setDescription('A fact or preference for this channel only')
       .setRequired(true).setMinLength(1).setMaxLength(400)),
   new SlashCommandBuilder().setName('memories').setDescription('Privately list your saved facts in this channel').setDMPermission(false),
@@ -21,7 +29,7 @@ export const commands = [
     return command;
   }),
   new SlashCommandBuilder().setName('help').setDescription('How to search the WoW Forever database'),
-  new SlashCommandBuilder().setName('setup').setDescription('Mute or unmute Syl and lookups in this server or channel')
+  new SlashCommandBuilder().setName('setup').setDescription('Mute or unmute Tome and lookups in this server or channel')
     .setDMPermission(false)
     .addStringOption(option => option.setName('scope').setDescription('Where this preference applies').setRequired(true)
       .addChoices({ name: 'This channel', value: 'channel' }, { name: 'This server', value: 'server' }))

@@ -85,7 +85,7 @@ export class Wowhead {
     try {
       response = await this.fetcher(url, {
         signal: AbortSignal.timeout(8000), redirect: 'error',
-        headers: { 'User-Agent': 'Krelhead/0.1 (WoW Forever Discord lookup)', Accept: 'application/json,text/html' },
+        headers: { 'User-Agent': 'Tome/0.1 (WoW Forever Discord lookup)', Accept: 'application/json,text/html' },
       });
     } catch { throw new SourceError('Wowhead could not be reached. Please try again shortly.'); }
     if (response.status === 429) {

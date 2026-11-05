@@ -49,8 +49,8 @@ function harness() {
 
 test('all command definitions serialize with valid descriptions and query autocomplete', () => {
   const schemas = commands.map(command => command.toJSON());
-  assert.equal(schemas.length, 13);
-  assert.equal(new Set(schemas.map(s => s.name)).size, 13);
+  assert.equal(schemas.length, 14);
+  assert.equal(new Set(schemas.map(s => s.name)).size, 14);
   assert(schemas.every(s => s.description.length <= 100));
 });
 
@@ -80,7 +80,7 @@ test('search defers before fetching, returns an image, and only its owner can ch
     assert.equal(search.calls[0]?.method, 'deferReply');
     assert.equal(search.calls[0]!.payload.flags, MessageFlags.Ephemeral);
     const payload = search.calls.find(call => call.method === 'threadSend')!.payload;
-    assert.match(search.calls.at(-1)!.payload.content, /View Syl’s reply/);
+    assert.match(search.calls.at(-1)!.payload.content, /View Tome’s reply/);
     assert.equal(payload.files.length, 1);
     const customId = payload.components[0].toJSON().components[0].custom_id;
     const picker = interaction('');

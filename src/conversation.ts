@@ -1,11 +1,12 @@
 import { MessageFlags, type ChatInputCommandInteraction, type Message } from 'discord.js';
 import { MemoryStore, scopeKey, type Scope } from './memory.js';
 import { SettingsStore } from './settings.js';
-import { Syl, answerTimeoutMs } from './syl.js';
+import { Tome, answerTimeoutMs } from './tome.js';
 import { tooltipMessage } from './tooltip.js';
 import { messageThread } from './threads.js';
+import type { SnapshotStore } from './snapshots.js';
 
-export async function addressedToSyl(message: Message, botId: string): Promise<boolean> {
+export async function addressedToTome(message: Message, botId: string): Promise<boolean> {
   if (!message.guildId || message.author.bot || message.webhookId) return false;
   if (new RegExp(`<@!?${botId}>`).test(message.content)) return true;
   if (!message.reference?.messageId || message.reference.channelId !== message.channelId) return false;
@@ -33,12 +34,12 @@ export class Conversation {
   private seen = new Map<string, number>();
   private limits = new Map<string, { count: number; expires: number }>();
 
-  constructor(private syl: Syl, private memory: MemoryStore, private settings: SettingsStore) {}
+  constructor(private tome: Tome, private memory: MemoryStore, private settings: SettingsStore, private snapshots?: SnapshotStore) {}
 
   async handle(message: Message): Promise<void> {
     const botId = message.client.user?.id;
     const parentChannelId = message.channel.isThread() ? message.channel.parentId : undefined;
-    if (!botId || this.settings.muted(message.guildId, message.channelId, parentChannelId) || !(await addressedToSyl(message, botId))) return;
+    if (!botId || this.settings.muted(message.guildId, message.channelId, parentChannelId) || !(await addressedToTome(message, botId))) return;
     const now = Date.now();
     for (const [id, expires] of this.seen) if (expires <= now) this.seen.delete(id);
     for (const [id, limit] of this.limits) if (limit.expires <= now) this.limits.delete(id);
@@ -74,10 +75,13 @@ export class Conversation {
         if (parent?.author.id === botId) replyTo = [parent.content,
           ...parent.embeds.map(embed => [embed.title, embed.description, embed.url].filter(Boolean).join('\n'))].join('\n').slice(0, 4000);
       }
-      const result = await this.syl.answer(question, {
+      const result = await this.tome.answer(question, {
         requestId: message.id,
         history: this.memory.history(scope), facts: this.memory.list(scope),
         guildDefaults: this.memory.guildDefaults(scope.guildId), replyTo,
+        characters: async query => this.snapshots ? { characters: this.snapshots.list(scope.guildId, query, query ? undefined : scope.userId),
+          coverage: 'Up to 25 player-uploaded characters shared with this server. Empty query lists the requesting member’s characters.' } : { error: 'Character snapshots are not connected.' },
+        character: async id => this.snapshots?.get(scope.guildId, id) ?? { error: 'Character snapshots are not connected.' },
         members: async query => {
           if (!message.guild) return { error: 'Guild unavailable.' };
           // Discord search is prefix-based; the list endpoint is a paginated sample.
@@ -97,7 +101,7 @@ export class Conversation {
       for (const part of parts.slice(1)) await reply(part);
       this.memory.append(scope, question, parts.join('\n'));
     } catch (error) {
-      console.error('Syl conversation failed:', error instanceof Error ? error.name : 'UnknownError');
+      console.error('Tome conversation failed:', error instanceof Error ? error.name : 'UnknownError');
       if (!muted()) await reply('I couldn’t complete that request right now. Please try again; the slash-command lookups are also available.').catch(() => {});
     } finally {
       clearTimeout(timeout); clearInterval(interval); this.active.delete(key);

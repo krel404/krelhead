@@ -1,6 +1,6 @@
 {
   "generator": "built-in image_gen",
   "prompt": "Edit this avatar only by zooming out and extending its background. Preserve the exact magical purple and gold book, rune, textures, perspective, bookmark, lighting, and hand-painted style. Extend the existing nearly black purple background seamlessly on all four sides. Scale and center the entire existing composition to about 70% of the square canvas width and height, adding generous dark margins. Every physical part of the book including its top right corner and bottom bookmark must fit comfortably inside a centered circular crop with diameter equal to the canvas width, with at least 8% additional clearance inside that circle. Keep the output square with a full dark background. Do not draw a circle, frame or border, do not crop any book parts, do not redesign the book, no new objects or text.",
-  "source": "syl-spellbook-avatar.png",
-  "image": "syl-spellbook-avatar-circle.png"
+  "source": "tome-spellbook-avatar.png",
+  "image": "tome-spellbook-avatar-circle.png"
 }

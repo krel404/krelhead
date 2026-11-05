@@ -1,0 +1,7 @@
+## Interface: 16001
+## Title: Tome Snapshot
+## Notes: Capture your own level, equipment and talents for sharing with Tome.
+## Author: Krel
+## Version: 0.2.0
+## SavedVariablesPerCharacter: TomeSnapshotExport
+TomeSnapshot.lua

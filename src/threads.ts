@@ -2,7 +2,7 @@ import { ChannelType, ThreadAutoArchiveDuration, type ChatInputCommandInteractio
 import { UserError } from './model.js';
 
 function threadName(topic: string): string {
-  return `Syl · ${topic.replace(/<[@#][^>]*>/g, '').replace(/\s+/g, ' ').trim() || 'Conversation'}`.slice(0, 100);
+  return `Tome · ${topic.replace(/<[@#][^>]*>/g, '').replace(/\s+/g, ' ').trim() || 'Conversation'}`.slice(0, 100);
 }
 
 export async function messageThread(message: Message): Promise<ThreadChannel> {

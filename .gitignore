@@ -7,3 +7,6 @@ data/
 artifacts/
 *.log
 .DS_Store
+tome-upload*.json
+# Keep old private uploader configs ignored during upgrades.
+syl-upload*.json

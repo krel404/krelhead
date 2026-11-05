@@ -7,7 +7,7 @@ import { MemoryStore } from '../src/memory.js';
 
 const scope = { guildId: 'guild', channelId: 'channel', userId: 'member' };
 test('guild defaults persist, apply independently of member/channel facts, and do not cross servers', () => {
-  const dir = mkdtempSync(join(tmpdir(), 'syl-defaults-'));
+  const dir = mkdtempSync(join(tmpdir(), 'tome-defaults-'));
   const path = join(dir, 'facts.sqlite');
   let memory = new MemoryStore(path);
   try {
@@ -26,7 +26,7 @@ test('guild defaults persist, apply independently of member/channel facts, and d
 });
 
 test('only explicitly saved facts persist; scope and ownership apply to reads and deletion', () => {
-  const dir = mkdtempSync(join(tmpdir(), 'syl-memory-'));
+  const dir = mkdtempSync(join(tmpdir(), 'tome-memory-'));
   const path = join(dir, 'facts.sqlite');
   let memory = new MemoryStore(path);
   try {

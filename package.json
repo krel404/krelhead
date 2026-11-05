@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "A WoW Forever Discord lookup bot powered by Wowhead",
+  "description": "Tome, a WoW Forever guild companion with game research and character snapshots",
   "engines": {
     "node": ">=22.18.0"
   },
@@ -16,7 +16,8 @@
     "test": "node --import tsx --test test/*.test.ts",
     "check": "tsc --noEmit",
     "smoke": "node --import tsx scripts/smoke.ts",
-    "smoke:syl": "node --env-file-if-exists=.env --import tsx scripts/smoke-syl.ts"
+    "smoke:tome": "node --env-file-if-exists=.env --import tsx scripts/smoke-tome.ts",
+    "package:addon": "node --import tsx scripts/package-addon.ts"
   },
   "dependencies": {
     "cheerio": "^1.1.2",
@@ -27,6 +28,7 @@
   },
   "devDependencies": {
     "@types/node": "^22.18.0",
+    "fengari": "^0.1.5",
     "tsx": "^4.20.0",
     "typescript": "^5.9.3"
   }

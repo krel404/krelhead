@@ -1,10 +1,24 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import type { Message } from 'discord.js';
-import { addressedToSyl, Conversation, splitAnswer } from '../src/conversation.js';
+import { addressedToTome, Conversation, splitAnswer } from '../src/conversation.js';
 import { MemoryStore } from '../src/memory.js';
 import { SettingsStore } from '../src/settings.js';
-import type { Syl } from '../src/syl.js';
+import type { Tome } from '../src/tome.js';
+import type { SnapshotStore } from '../src/snapshots.js';
+
+test('character tools bind every read to the current server and empty queries to the requesting member', async () => {
+  const memory = new MemoryStore(':memory:');
+  const received: unknown[] = [];
+  const snapshots = { list: (...args: unknown[]) => { received.push(args); return []; }, get: (...args: unknown[]) => { received.push(args); return {}; } } as unknown as SnapshotStore;
+  const tome = { answer: async (_: string, context: { characters: (query: string) => Promise<unknown>; character: (id: string) => Promise<unknown> }) => {
+    await context.characters(''); await context.characters('Someone'); await context.character('3/Player-1234-ABCDEF'); return { text: 'No snapshot yet.' };
+  } } as unknown as Tome;
+  try {
+    await new Conversation(tome, memory, { muted: () => false } as unknown as SettingsStore, snapshots).handle(message('<@123> my gear').value);
+    assert.deepEqual(received, [['guild', '', 'user'], ['guild', 'Someone', undefined], ['guild', '3/Player-1234-ABCDEF']]);
+  } finally { memory.close(); }
+});
 
 function message(content: string, authorId = 'user') {
   const replies: any[] = [];
@@ -22,26 +36,26 @@ function message(content: string, authorId = 'user') {
     reply: async (payload: unknown) => { parentReplies.push(payload); } };
   return { raw: value, value: value as unknown as Message, replies, parentReplies, starts, thread };
 }
-test('only direct mentions and same-channel replies to Syl trigger; bots, webhooks and DMs do not', async () => {
-  for (const content of ['Syl what is Frostbolt?', '<@&123> hello', 'hello']) assert.equal(await addressedToSyl(message(content).value, '123'), false);
-  assert.equal(await addressedToSyl(message('<@123> hello').value, '123'), true);
-  assert.equal(await addressedToSyl(message('<@!123> hello').value, '123'), true);
+test('only direct mentions and same-channel replies to Tome trigger; bots, webhooks and DMs do not', async () => {
+  for (const content of ['Tome what is Frostbolt?', '<@&123> hello', 'hello']) assert.equal(await addressedToTome(message(content).value, '123'), false);
+  assert.equal(await addressedToTome(message('<@123> hello').value, '123'), true);
+  assert.equal(await addressedToTome(message('<@!123> hello').value, '123'), true);
   const reply = message('and rank 2?'); reply.raw.reference = { messageId: 'parent', channelId: 'channel' };
-  assert.equal(await addressedToSyl(reply.value, '123'), true);
-  reply.raw.reference.channelId = 'other'; assert.equal(await addressedToSyl(reply.value, '123'), false);
+  assert.equal(await addressedToTome(reply.value, '123'), true);
+  reply.raw.reference.channelId = 'other'; assert.equal(await addressedToTome(reply.value, '123'), false);
   reply.raw.reference.channelId = 'channel'; reply.raw.fetchReference = async () => ({ author: { id: 'someone' }, content: '', embeds: [] });
-  assert.equal(await addressedToSyl(reply.value, '123'), false);
+  assert.equal(await addressedToTome(reply.value, '123'), false);
   const bot = message('<@123> hello'); bot.raw.author.bot = true;
-  assert.equal(await addressedToSyl(bot.value, '123'), false);
-  assert.equal(await addressedToSyl({ ...message('<@123>').raw, webhookId: 'webhook' } as unknown as Message, '123'), false);
-  assert.equal(await addressedToSyl({ ...message('<@123>').raw, guildId: null } as unknown as Message, '123'), false);
+  assert.equal(await addressedToTome(bot.value, '123'), false);
+  assert.equal(await addressedToTome({ ...message('<@123>').raw, webhookId: 'webhook' } as unknown as Message, '123'), false);
+  assert.equal(await addressedToTome({ ...message('<@123>').raw, guildId: null } as unknown as Message, '123'), false);
 });
 
 test('duplicate messages, ambient chat and muted channels never cause extra model calls; mentions disabled on replies', async () => {
   const memory = new MemoryStore(':memory:');
   let requests = 0;
   let muted = false;
-  const conversation = new Conversation({ answer: async () => { requests++; return { text: 'Hello!' }; } } as unknown as Syl,
+  const conversation = new Conversation({ answer: async () => { requests++; return { text: 'Hello!' }; } } as unknown as Tome,
     memory, { muted: () => muted } as unknown as SettingsStore);
   try {
     await conversation.handle(message('ambient').value);
@@ -66,11 +80,11 @@ test('main-channel answers create a thread, keep all chunks there, and retain co
   const histories: unknown[] = [];
   const facts: string[][] = [];
   memory.save({ guildId: 'guild', channelId: 'channel', userId: 'user' }, 'I play a rogue.');
-  const syl = { answer: async (_question: string, context: { history: unknown[]; facts: { fact: string }[] }) => {
+  const tome = { answer: async (_question: string, context: { history: unknown[]; facts: { fact: string }[] }) => {
     histories.push(context.history); facts.push(context.facts.map(row => row.fact));
     return { text: 'A sufficiently long answer. '.repeat(100) };
-  } } as unknown as Syl;
-  const conversation = new Conversation(syl, memory, { muted: () => false } as unknown as SettingsStore);
+  } } as unknown as Tome;
+  const conversation = new Conversation(tome, memory, { muted: () => false } as unknown as SettingsStore);
   try {
     const first = message('<@123> rogue gear?'); first.raw.channel.isThread = () => false;
     await conversation.handle(first.value);
@@ -80,7 +94,7 @@ test('main-channel answers create a thread, keep all chunks there, and retain co
     memory.save({ guildId: 'guild', channelId: first.thread.id, userId: 'user' }, 'Use daggers for this discussion.');
     const follow = message('what about daggers?'); follow.raw.id = 'follow'; follow.raw.channelId = first.thread.id;
     follow.raw.channel = first.thread;
-    follow.raw.reference = { messageId: 'syl-answer', channelId: first.thread.id };
+    follow.raw.reference = { messageId: 'tome-answer', channelId: first.thread.id };
     await conversation.handle(follow.value);
     assert.equal(follow.starts.length, 0);
     assert.equal(follow.parentReplies.length, 0);
@@ -93,7 +107,7 @@ test('main-channel answers create a thread, keep all chunks there, and retain co
 test('existing message threads are reused and failed thread creation never falls back to main chat', async () => {
   const memory = new MemoryStore(':memory:');
   let requests = 0;
-  const conversation = new Conversation({ answer: async () => { requests++; return { text: 'Answer' }; } } as unknown as Syl,
+  const conversation = new Conversation({ answer: async () => { requests++; return { text: 'Answer' }; } } as unknown as Tome,
     memory, { muted: () => false } as unknown as SettingsStore);
   try {
     const existing = message('<@123> hello'); existing.raw.channel.isThread = () => false;
@@ -109,7 +123,7 @@ test('existing message threads are reused and failed thread creation never falls
 
 test('model failures are reported only inside the thread', async () => {
   const memory = new MemoryStore(':memory:');
-  const conversation = new Conversation({ answer: async () => { throw new Error('Provider unavailable'); } } as unknown as Syl,
+  const conversation = new Conversation({ answer: async () => { throw new Error('Provider unavailable'); } } as unknown as Tome,
     memory, { muted: () => false } as unknown as SettingsStore);
   try {
     const input = message('<@123> hello'); input.raw.channel.isThread = () => false;
@@ -123,10 +137,10 @@ test('every member and channel receives only its own server defaults', async () 
   const memory = new MemoryStore(':memory:');
   memory.setGuildDefaults('guild', { faction: 'Horde', focus: 'PvP' });
   const received: unknown[] = [];
-  const syl = { answer: async (_question: string, context: { guildDefaults?: unknown }) => {
+  const tome = { answer: async (_question: string, context: { guildDefaults?: unknown }) => {
     received.push(context.guildDefaults); return { text: 'Answer' };
-  } } as unknown as Syl;
-  const conversation = new Conversation(syl, memory, { muted: () => false } as unknown as SettingsStore);
+  } } as unknown as Tome;
+  const conversation = new Conversation(tome, memory, { muted: () => false } as unknown as SettingsStore);
   try {
     const first = message('<@123> gear?', 'one'); await conversation.handle(first.value);
     const second = message('<@123> gear?', 'two'); second.raw.id = 'second'; second.raw.channelId = 'other-channel';
@@ -142,8 +156,8 @@ test('one active request per member/channel and five per minute; mute during res
   let muted = false;
   let complete: (value: { text: string }) => void = () => {};
   let requests = 0;
-  const syl = { answer: async () => { requests++; return new Promise<{ text: string }>(resolve => { complete = resolve; }); } } as unknown as Syl;
-  const conversation = new Conversation(syl, memory, { muted: () => muted } as unknown as SettingsStore);
+  const tome = { answer: async () => { requests++; return new Promise<{ text: string }>(resolve => { complete = resolve; }); } } as unknown as Tome;
+  const conversation = new Conversation(tome, memory, { muted: () => muted } as unknown as SettingsStore);
   try {
     const first = message('<@123> first');
     const pending = conversation.handle(first.value);

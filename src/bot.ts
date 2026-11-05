@@ -7,11 +7,12 @@ import { SettingsStore } from './settings.js';
 import { Wowhead } from './wowhead.js';
 import type { Conversation } from './conversation.js';
 import { commandThread } from './threads.js';
+import type { Characters } from './characters.js';
 
 type Selection = { userId: string; results: SearchResult[]; query: string; expires: number };
 export class Bot {
   private selections = new Map<string, Selection>();
-  constructor(private source: Wowhead, private settings: SettingsStore, private conversation?: Conversation) {}
+  constructor(private source: Wowhead, private settings: SettingsStore, private conversation?: Conversation, private characters?: Characters) {}
 
   async handle(interaction: Interaction): Promise<void> {
     let deliver: ((payload: MessageCreateOptions) => Promise<void>) | undefined;
@@ -42,24 +43,26 @@ export class Bot {
         await this.select(interaction); return;
       }
       if (!interaction.isChatInputCommand()) return;
+      if (await this.characters?.command(interaction)) return;
       if (await this.conversation?.command(interaction)) return;
       if (['remember', 'memories', 'forget', 'resetcontext'].includes(interaction.commandName)) {
         await interaction.reply({ content: 'Conversation and memory controls are disabled until the bot is configured with an OpenAI key.', flags: MessageFlags.Ephemeral }); return;
       }
       if (interaction.commandName === 'help') {
         await interaction.reply({ flags: MessageFlags.Ephemeral, content: [
-          '**Syl · WoW Forever**',
+          '**Tome · WoW Forever**',
           'Mention me directly or reply to one of my messages to chat, ask for a tooltip, or research a game question.',
           'Public answers and lookup cards go into threads. Mention me or reply to me inside the thread for follow-ups.',
           '`/remember fact:...`, `/memories`, `/forget id:...` — manage facts saved for you in this channel. They can inform my public replies here.',
           '`/resetcontext` — clear recent context. Unsaved context expires after 30 minutes; I don’t automatically save facts.',
+          '`/character import` — share your addon snapshot with this server. `/character list`, `connect`, `disconnect`, and `forget` manage your characters and uploader.',
           '`/search query:Hogger` — search items, NPCs, spells, and quests.',
           '`/item query:Thunderfury` — limit the search; `/npc`, `/spell`, and `/quest` work the same way.',
           '`/spell query:116` — look up an ID directly.',
           '`/tooltip query:item:19019` — `/tooltip` and `/tt` are aliases of `/search`.',
           'You can also paste a Wowhead **Forever** URL. Autocomplete shows matching names and spell ranks.',
           'The top match is shown immediately. Use the result picker to view another match.',
-          '`/setup` — enable or mute Syl and lookups for a server (Manage Server) or channel (Manage Channels). Channel preferences override server preferences.',
+          '`/setup` — enable or mute Tome and lookups for a server (Manage Server) or channel (Manage Channels). Channel preferences override server preferences.',
           '**Source:** https://www.wowhead.com/forever/database',
           'Forever data is still incomplete. Missing entries are never substituted with Classic or Retail data.',
         ].join('\n'), allowedMentions: { parse: [] } });
@@ -75,11 +78,11 @@ export class Bot {
       const thread = await commandThread(interaction);
       deliver = async payload => {
         if (this.settings.muted(interaction.guildId, thread.id, thread.parentId)) {
-          await interaction.editReply({ content: 'Syl is muted here.' }); return;
+          await interaction.editReply({ content: 'Tome is muted here.' }); return;
         }
         const response = await thread.send({ ...payload, ...(!payload.embeds?.length ? { flags: MessageFlags.SuppressEmbeds } : {}),
           allowedMentions: { parse: [], repliedUser: false } });
-        await interaction.editReply({ content: `[View Syl’s reply](${response.url})`, flags: MessageFlags.SuppressEmbeds, allowedMentions: { parse: [] } });
+        await interaction.editReply({ content: `[View Tome’s reply](${response.url})`, flags: MessageFlags.SuppressEmbeds, allowedMentions: { parse: [] } });
       };
       const query = interaction.options.getString('query', true);
       const type = isEntityType(interaction.commandName) ? interaction.commandName : interaction.options.getString('type');

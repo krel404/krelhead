@@ -1,4 +1,6 @@
-# Syl: product direction and architecture
+# Tome: product direction and architecture
+
+November 5 update: the first character snapshot implementation is built: a Forever Lua addon, Discord file import, scoped character links, SQLite history, optional authenticated desktop uploads, and Tome character-query tools. See [the current setup and limitations](character-snapshots.md). Live game validation and public upload hosting are still needed. The older planning sections below describe the intended architecture, not additional shipped features.
 
 Status: product direction established on November 4, 2026. The first conversational implementation now includes OpenAI Responses tool calling, mention/reply handling, existing Wowhead tooltips, source-filtered/broader web research, Discord member prefix lookup, and explicit memory commands. See README for implemented limits and deployment requirements. The remaining architecture and acceptance targets below include future work and do not imply those capabilities are deployed.
 
@@ -6,17 +8,17 @@ Implementation defaults: `gpt-6-luna` for conversation/lookups/final formatting,
 
 ## Current understanding
 
-Syl is an LLM-powered guild companion who participates in Discord conversations. Members can ask naturally for a spell tooltip, gear advice, dungeon preparation, raid information, or a question that requires several sources. Syl uses the conversation, verified game information, and authorized guild context to answer at the appropriate level of detail.
+Tome is an LLM-powered guild companion who participates in Discord conversations. Members can ask naturally for a spell tooltip, gear advice, dungeon preparation, raid information, or a question that requires several sources. Tome uses the conversation, verified game information, and authorized guild context to answer at the appropriate level of detail.
 
 The goal is to make a knowledgeable, useful participant in the guild. Slash commands remain useful shortcuts and administrative controls; the primary interface becomes conversation.
 
 The user's requirements are:
 
-- Name the companion Syl.
+- Name the companion Tome.
 - Use OpenAI as the LLM provider.
 - Use GPT-6 Luna for conversation and lookups, and GPT-6.1 Sol for web research, both with low reasoning. Never use Astra due to cost; enforce this in application configuration and do not add an Astra fallback or escalation path.
 - Support ordinary conversation and both straightforward and complex questions.
-- Initially respond only to direct mentions of Syl or Discord replies to Syl's messages. Do not initiate conversations or respond automatically in a dedicated channel.
+- Initially respond only to direct mentions of Tome or Discord replies to Tome's messages. Do not initiate conversations or respond automatically in a dedicated channel.
 - Put public answers in Discord threads: create one from a main-channel message, reuse an existing thread, and keep lookup cards and follow-ups there. Slash-command acknowledgments and administrative/memory confirmations are private. Never fall back to public main-channel answers when threading fails. Recent context and personal saved facts remain scoped to the reply thread; guild defaults apply across the server.
 - Remember explicitly saved facts and preferences across conversations, and use bounded recent context for follow-ups. Do not automatically convert casual conversation into long-term memories.
 - Prefer Wowhead and Icy Veins for game information, and search more broadly when necessary.
@@ -26,7 +28,7 @@ The user's requirements are:
 
 ## Experience
 
-| Member says | Syl should do |
+| Member says | Tome should do |
 | --- | --- |
 | “What's Frostbolt?” | Resolve the Forever spell and send the existing tooltip card with its source. Use character context to choose a rank when available; otherwise label the displayed rank and offer alternatives. |
 | “What's rogue BiS at level 25?” | Determine the relevant build and playstyle, retrieve eligible gear and current guidance, explain recommendations by slot, and disclose assumptions and missing data. |
@@ -36,16 +38,16 @@ The user's requirements are:
 | “What should I farm before that raid?” | Combine the event, the member's linked character snapshot, current gear, and available upgrade sources. State when the snapshot was collected. |
 | Casual chat | Respond naturally and briefly without forcing a search or dumping item cards. |
 
-“Can answer complex questions” means Syl can investigate, combine evidence, ask a useful clarification, and acknowledge when evidence is insufficient. It is not a promise that every question has a verified answer. Long research should produce a brief progress acknowledgment followed by the useful result, without flooding the channel.
+“Can answer complex questions” means Tome can investigate, combine evidence, ask a useful clarification, and acknowledge when evidence is insufficient. It is not a promise that every question has a verified answer. Long research should produce a brief progress acknowledgment followed by the useful result, without flooding the channel.
 
 Personality: brief, direct, and knowledgeable. Default to the shortest complete answer, without flavor text, roleplay, banter, related information, or unsolicited follow-up offers. Expand when requested or needed to answer fully. Keep essential assumptions, uncertainty, and source links concise; do not duplicate tooltip cards in prose.
 
-Every conversational example above assumes a direct mention or a reply to a message from Syl. Reply detection uses the referenced message's author, including replies with mention notifications disabled. Merely typing the name “Syl,” mentioning a role, or participating in the same thread does not trigger a response. Existing explicit slash commands remain available. Raid examples describe future behavior pending the event/calendar decision.
+Every conversational example above assumes a direct mention or a reply to a message from Tome. Reply detection uses the referenced message's author, including replies with mention notifications disabled. Merely typing the name “Tome,” mentioning a role, or participating in the same thread does not trigger a response. Existing explicit slash commands remain available. Raid examples describe future behavior pending the event/calendar decision.
 
 ## Decision tree
 
-1. **Identity and purpose — resolved:** Syl, a conversational companion for the WoW Forever guild.
-2. **Participation — resolved:** direct mentions and replies to Syl only. No proactive participation or channel-wide automatic responses. Existing explicit commands remain supported.
+1. **Identity and purpose — resolved:** Tome, a conversational companion for the WoW Forever guild.
+2. **Participation — resolved:** direct mentions and replies to Tome only. No proactive participation or channel-wide automatic responses. Existing explicit commands remain supported.
 3. **Guild sources — calendar decision explicitly deferred:** use Discord for membership and roles. Future events may come from Discord Scheduled Events, a maintained calendar, or purpose-built internal database/calendar tooling. None is selected or required for the initial conversational release.
 4. **Memory — resolved:** explicitly saved facts/preferences plus bounded recent conversation context. Do not extract permanent facts automatically from casual chat. Structured source sync, including opted-in character snapshots, is independent of conversation memory. Retention duration and the save/correct/forget interface remain implementation details to settle. Event reads/writes, signup changes, unsolicited reminders, and member pings remain deferred with the calendar feature.
 5. **Runtime services — provider resolved:** use OpenAI for the LLM. Recommend the Responses API with function tools and OpenAI's built-in web search. Keep the exact model configurable; model selection, hosting, and operating-cost limits remain to be settled. Do not assume that credentials available to the coding assistant are available to the deployed bot.
@@ -60,7 +62,7 @@ Use one TypeScript service with clear modules and a persistent database. Keep di
 ```mermaid
 flowchart TD
     D[Discord messages and replies] --> C[Conversation and access context]
-    C --> S[Syl: LLM with tool calling]
+    C --> S[Tome: LLM with tool calling]
     S --> W[Wowhead entities and tooltips]
     S --> R[Icy Veins and broader web research]
     S --> G[Guild members and facts; events deferred]
@@ -74,9 +76,9 @@ flowchart TD
     U --> P
 ```
 
-**Discord conversation adapter.** Gate messages before invoking the model: accept direct user mentions of Syl and replies whose referenced message was authored by Syl. Resolve reply/thread context, author identity, channel, guild, and permissions. Do not require a mention notification on a reply. Ignore bot/webhook loops and ambient messages, deduplicate events, and serialize turns within a conversation. Reuse eligible conversation context when addressed again, but do not keep responding to subsequent unaddressed messages. Support a fast tooltip response and a longer research response within the same conversational interface.
+**Discord conversation adapter.** Gate messages before invoking the model: accept direct user mentions of Tome and replies whose referenced message was authored by Tome. Resolve reply/thread context, author identity, channel, guild, and permissions. Do not require a mention notification on a reply. Ignore bot/webhook loops and ambient messages, deduplicate events, and serialize turns within a conversation. Reuse eligible conversation context when addressed again, but do not keep responding to subsequent unaddressed messages. Support a fast tooltip response and a longer research response within the same conversational interface.
 
-**Syl agent.** Use a tool-calling LLM that can compose lookups, filtered queries, research, and guild retrieval as needed. Do not restrict questions to an enumerated list of hardcoded intents. Validate every tool's arguments and enforce access and resource limits in application code. Keep a direct entity/ID path for existing commands. A simple lookup should not require a multi-page research session.
+**Tome agent.** Use a tool-calling LLM that can compose lookups, filtered queries, research, and guild retrieval as needed. Do not restrict questions to an enumerated list of hardcoded intents. Validate every tool's arguments and enforce access and resource limits in application code. Keep a direct entity/ID path for existing commands. A simple lookup should not require a multi-page research session.
 
 **Tool layer.** Expose narrowly defined operations such as `search_entities`, `get_tooltip`, `find_gear`, `read_source`, `search_web`, `get_member`, `get_guild_facts`, and `get_character_snapshot`. Reserve `list_events` and `get_event_signups` for the deferred calendar integration; do not expose nonfunctional event tools. Implement source connectors independently from the model and Discord renderer. Do not give the model unrestricted SQL, filesystem, or arbitrary HTTP access.
 
@@ -86,9 +88,9 @@ flowchart TD
 
 ## OpenAI integration
 
-OpenAI is the selected LLM provider. The recommended integration is the official TypeScript SDK and Responses API. Syl supplies bounded conversation context and authorized retrieved facts, receives function calls, validates and executes them in the service, and sends tool results back until there is an answer or the request limit is reached. The existing Wowhead lookup and tooltip renderer become callable tools.
+OpenAI is the selected LLM provider. The recommended integration is the official TypeScript SDK and Responses API. Tome supplies bounded conversation context and authorized retrieved facts, receives function calls, validates and executes them in the service, and sends tool results back until there is an answer or the request limit is reached. The existing Wowhead lookup and tooltip renderer become callable tools.
 
-Use OpenAI's built-in `web_search` as the proposed research backend. Domain filters allow a first pass over Wowhead and Icy Veins; broader research can remove that restriction when the preferred sources are insufficient. Preserve returned citation annotations as clickable Discord links. Run public research with game-related query context, excluding private guild facts; combine the resulting evidence with authorized guild context in Syl's answer step.
+Use OpenAI's built-in `web_search` as the proposed research backend. Domain filters allow a first pass over Wowhead and Icy Veins; broader research can remove that restriction when the preferred sources are insufficient. Preserve returned citation annotations as clickable Discord links. Run public research with game-related query context, excluding private guild facts; combine the resulting evidence with authorized guild context in Tome's answer step.
 
 Configure conversation with `OPENAI_MODEL` (default `gpt-6-luna`) and public research with `OPENAI_RESEARCH_MODEL` (default `gpt-6.1-sol`); credentials remain in `OPENAI_API_KEY`. Luna selects tools and formats the final Discord answer; Sol performs the isolated web research. Both settings reject Astra models. Model usage is logged without message bodies, and iterations, research calls, time, and response lengths are capped; see README for exact defaults. Explicit memories live in the application's SQLite database.
 
@@ -112,7 +114,7 @@ Discord users and game characters are different entities. Link them explicitly, 
 
 Use Discord membership and roles for the server roster. Obtain in-game guild membership from an explicitly supported source or uploaded observations; do not equate every Discord member with an in-game guild member. Fetch/paginate membership as needed rather than assuming the client cache contains everyone.
 
-Event/calendar design is intentionally deferred. The eventual source could be Discord Scheduled Events, a calendar someone maintains, or the project's own internal database/calendar tooling. Keep calendar access behind a replaceable integration boundary without building an event system yet. When implemented, identify the authoritative source and preserve cancellation, timezone, and last-sync information. Discord event interest alone must not be treated as confirmed attendance, character selection, or a role assignment. Until a source is configured, Syl should say that guild event data is not connected.
+Event/calendar design is intentionally deferred. The eventual source could be Discord Scheduled Events, a calendar someone maintains, or the project's own internal database/calendar tooling. Keep calendar access behind a replaceable integration boundary without building an event system yet. When implemented, identify the authoritative source and preserve cancellation, timezone, and last-sync information. Discord event interest alone must not be treated as confirmed attendance, character selection, or a role assignment. Until a source is configured, Tome should say that guild event data is not connected.
 
 Store explicitly saved guild facts and member preferences separately from recent conversation context. Every saved fact needs an owner/source, scope, timestamp, and a correction/deletion path. Saving a member's preference and updating a shared guild rule have different permissions; define the permitted editors before exposing the save tool. Casual statements can inform the current conversation without becoming permanent facts. Read channel history only within the agreed context and retention policy; do not assume all Discord history is a knowledge base. Opted-in character snapshots remain automatically synchronized structured data, rather than inferred conversational memories.
 
@@ -122,11 +124,11 @@ Scope every retrieval to the guild, requesting member, and intended reply audien
 
 Treat this as an opt-in source with its own authenticated ingestion contract. The practical design is:
 
-`WoW addon → saved snapshot or explicit export → desktop uploader/manual upload → Syl ingestion API → linked character record`
+`WoW addon → saved snapshot or explicit export → desktop uploader/manual upload → Tome ingestion API → linked character record`
 
 Capture and delivery are separate stages. At login, collect the player's level, equipped items, and talents once the client has populated them. Refresh the in-memory snapshot after level, equipment, or talent changes, debounce bursts of events, and handle initially unavailable item data without overwriting good values with empty slots.
 
-An addon does not have a general HTTP client for posting these snapshots directly to Syl. Wowhead documents a comparable addon-plus-desktop-client approach. With a SavedVariables-based bridge, WoW normally writes the updated snapshot on UI reload, logout, or exit; the uploader can then send it automatically. Merely logging in does not guarantee that the new snapshot is immediately on disk, and an uploader at login may see the previous session's snapshot. Do not force a UI reload or imply that capture time and upload time are the same. An explicit export/upload is an alternative. Validate actual Forever client behavior before specifying the sync timing.
+An addon does not have a general HTTP client for posting these snapshots directly to Tome. Wowhead documents a comparable addon-plus-desktop-client approach. With a SavedVariables-based bridge, WoW normally writes the updated snapshot on UI reload, logout, or exit; the uploader can then send it automatically. Merely logging in does not guarantee that the new snapshot is immediately on disk, and an uploader at login may see the previous session's snapshot. Do not force a UI reload or imply that capture time and upload time are the same. An explicit export/upload is an alternative. Validate actual Forever client behavior before specifying the sync timing.
 
 Initial snapshot fields are character identity and game version/build, level, equipped items by slot, and selected talents/ranks or an equivalent build representation supported by the client. Preserve item-instance details such as enchantments or random affixes when available; item IDs alone may not fully describe the equipped gear. Character class is needed to interpret the data. Professions, bags, bank, combat logs, raid lockouts, and other members' gear are outside the initial addon scope. Validate the available APIs against Forever before choosing event names or a serialization schema.
 
@@ -147,11 +149,11 @@ Discord lists `MESSAGE_CONTENT` and `GUILD_MEMBERS` as privileged intents. Acces
 
 ## Delivery and acceptance
 
-The implementation target is an integrated conversational Syl with game research and guild/member context. Work can be built in dependency order: shared tools and storage, conversation/model loop, research and gear retrieval, then guild/member integrations. Character snapshots have a defined initial scope but depend on validating client access and a distribution/upload approach. Event/calendar integrations remain deferred by user decision and do not block the initial conversational release.
+The implementation target is an integrated conversational Tome with game research and guild/member context. Work can be built in dependency order: shared tools and storage, conversation/model loop, research and gear retrieval, then guild/member integrations. Character snapshots have a defined initial scope but depend on validating client access and a distribution/upload approach. Event/calendar integrations remain deferred by user decision and do not block the initial conversational release.
 
 Acceptance scenarios should include:
 
-- Syl answers direct mentions and replies to her messages, including replies with mention notifications disabled. Ambient chat, role mentions, plain-text use of “Syl,” and unaddressed thread messages do not trigger her.
+- Tome answers direct mentions and replies to her messages, including replies with mention notifications disabled. Ambient chat, role mentions, plain-text use of “Tome,” and unaddressed thread messages do not trigger her.
 - A member asks for Frostbolt and receives a source-backed card with an explicit rank/version.
 - A level-25 rogue question produces explained recommendations, respects equipment/acquisition limits, and cites evidence or clearly labels estimates.
 - A follow-up retains the appropriate class/level context without confusing another member's character.
