@@ -1,4 +1,4 @@
-local ADDON_VERSION = "0.2.0"
+local ADDON_VERSION = "0.3.0"
 local arrayMarker = {}
 local function array() return setmetatable({}, arrayMarker) end
 local function quote(value)

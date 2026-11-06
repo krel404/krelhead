@@ -21,7 +21,8 @@ export function snapshotServer(store: SnapshotStore, isMember: (owner: SnapshotO
       if (!response.destroyed) response.writeHead(status, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }).end(JSON.stringify(body));
     };
     const handle = async (request: IncomingMessage) => {
-      if (request.method !== 'POST' || request.url !== '/v1/snapshots') { send(404, { error: 'Not found.' }); return; }
+      const checkConnection = request.method === 'GET' && request.url === '/v1/snapshots/status';
+      if (!checkConnection && (request.method !== 'POST' || request.url !== '/v1/snapshots')) { send(404, { error: 'Not found.' }); return; }
       const owner = store.authenticate(request.headers.authorization?.replace(/^Bearer /, '') ?? '');
       if (!owner) { send(401, { error: 'Upload token is missing, expired or revoked.' }); return; }
       for (const [key, limit] of limits) if (limit.expires <= Date.now()) limits.delete(key);
@@ -34,6 +35,10 @@ export function snapshotServer(store: SnapshotStore, isMember: (owner: SnapshotO
       try {
         if (Number(request.headers['content-length'] ?? 0) > maxSnapshotBytes) { send(413, { error: 'Snapshot exceeds 256 KB.' }); return; }
         if (!(await isMember(owner))) { send(403, { error: 'Join the Discord server before uploading.' }); return; }
+        if (checkConnection) {
+          if (!store.authenticate(request.headers.authorization?.replace(/^Bearer /, '') ?? '')) { send(401, { error: 'Upload token was revoked.' }); return; }
+          send(200, { connected: true }); return;
+        }
         const body = await readSnapshotBody(request);
         // Recheck token revocation after asynchronous membership/body reads.
         if (!store.authenticate(request.headers.authorization?.replace(/^Bearer /, '') ?? '')) { send(401, { error: 'Upload token was revoked.' }); return; }

@@ -24,12 +24,13 @@ export class Characters {
       await reply(`${saved.status === 'saved' ? 'Saved' : 'Already have this or a newer snapshot for'} character \`${saved.characterId}\`. Its level, gear and talents are shared with this server and available to Tome. Ownership is self-reported. Use /character forget to delete it.`);
     } else if (sub === 'list') {
       const rows = this.store.list(owner.guildId, '', owner.userId);
-      await reply(rows.length ? rows.map(row => `**${row.name} ${row.surname}** — level ${row.level} ${row.classToken}, ${row.realm}\n\`${row.characterId}\` · captured <t:${row.capturedAt}:R>${row.stale ? ' (stale)' : ''}`).join('\n').slice(0, 1900) : 'No characters linked yet. Use /character import with your TomeSnapshot.lua file.');
+      await reply(rows.length ? rows.map(row => `**${row.name} ${row.surname}** — level ${row.level} ${row.classToken}, ${row.realm}\n\`${row.characterId}\` · captured <t:${row.capturedAt}:R>${row.stale ? ' (stale)' : ''}`).join('\n').slice(0, 1900) : `No characters linked yet. ${this.uploadUrl ? 'Use /character connect to set up automatic sync with Tome Companion.' : 'Use /character import with your TomeSnapshot.lua file until automatic sync is hosted.'}`);
     } else if (sub === 'connect') {
       if (!this.uploadUrl) throw new UserError('Automatic upload is not hosted yet. Use /character import with your saved file for now.');
       const token = this.store.issueToken(owner);
-      const config = JSON.stringify({ endpoint: this.uploadUrl, token, files: ['REPLACE_WITH_FULL_PATH_TO_CHARACTER_SAVEDVARIABLES/TomeSnapshot.lua'] }, null, 2);
-      await interaction.editReply({ content: 'Download this private uploader config, set its file paths, and run the desktop uploader. Uploads share character level, gear and talents with this server. This token expires in 90 days and replaces your old token; keep the config private. Use /character disconnect to revoke it.',
+      const config = JSON.stringify({ endpoint: this.uploadUrl, token, server: interaction.guild?.name ?? 'Your Discord server',
+        files: ['REPLACE_WITH_FULL_PATH_TO_CHARACTER_SAVEDVARIABLES/TomeSnapshot.lua'] }, null, 2);
+      await interaction.editReply({ content: 'Download this private connection file and open it in Tome Companion (Windows/macOS). Choose your WoW account once; the companion installs the addon and syncs automatically after normal logout or game exit. No file editing or manual imports needed. Your level, gear and talents are shared with this server. The connection expires in 90 days and replaces your old one; keep this file private. Use /character disconnect to revoke it.',
         files: [new AttachmentBuilder(Buffer.from(config), { name: 'tome-upload.json' })], allowedMentions: { parse: [] } });
     } else if (sub === 'disconnect') {
       this.store.revoke(owner);

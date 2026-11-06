@@ -10,3 +10,5 @@ artifacts/
 tome-upload*.json
 # Keep old private uploader configs ignored during upgrades.
 syl-upload*.json
+companion/lib/
+companion/resources/

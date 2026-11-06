@@ -17,7 +17,10 @@
     "check": "tsc --noEmit",
     "smoke": "node --import tsx scripts/smoke.ts",
     "smoke:tome": "node --env-file-if-exists=.env --import tsx scripts/smoke-tome.ts",
-    "package:addon": "node --import tsx scripts/package-addon.ts"
+    "package:addon": "node --import tsx scripts/package-addon.ts",
+    "companion": "npm --prefix companion start",
+    "package:companion:mac": "npm --prefix companion run package:mac",
+    "package:companion:win": "npm --prefix companion run package:win"
   },
   "dependencies": {
     "cheerio": "^1.1.2",

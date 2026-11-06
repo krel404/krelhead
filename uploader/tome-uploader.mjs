@@ -7,20 +7,32 @@ import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { setTimeout as sleep } from 'node:timers/promises';
 
-export function validateConfig(value) {
+export function validateConnection(value) {
   if (!value || typeof value !== 'object' || !/^[a-f0-9]{64}$/.test(value.token ?? '')) throw new Error('Invalid uploader token. Download a config using /character connect.');
   const url = new URL(value.endpoint);
   if (url.username || url.password || url.search || url.hash || url.pathname !== '/v1/snapshots' ||
       (url.protocol !== 'https:' && !(url.protocol === 'http:' && ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname)))) {
     throw new Error('Use an HTTPS snapshot endpoint; HTTP is allowed only on this computer.');
   }
+  return { endpoint: url.href, token: value.token };
+}
+
+export function validateConfig(value) {
+  const connection = validateConnection(value);
   if (!Array.isArray(value.files) || !value.files.length || value.files.length > 25 || value.files.some(file => typeof file !== 'string' || !file || file.includes('REPLACE_WITH'))) {
     throw new Error('Set files to the explicit TomeSnapshot.lua paths for the characters you want to share.');
   }
-  return { endpoint: url.href, token: value.token, files: [...new Set(value.files)] };
+  return { ...connection, files: [...new Set(value.files)] };
 }
 
-export async function uploadFile(config, file, previousDigest, signal) {
+export async function verifyConnection(config) {
+  const response = await fetch(`${config.endpoint}/status`, { redirect: 'error',
+    headers: { Authorization: `Bearer ${config.token}` }, signal: AbortSignal.timeout(15_000) });
+  if (!response.ok) throw new Error('Connection file could not be verified. Check that Tome is online and download a new file using /character connect.');
+  if ((await response.json()).connected !== true) throw new Error('Connection file did not point to a working Tome upload service.');
+}
+
+export async function readSnapshotFile(file) {
   if ((await stat(file)).size > 256_000) throw new Error('Snapshot exceeds 256 KB.');
   const chunks = [];
   let size = 0;
@@ -31,12 +43,26 @@ export async function uploadFile(config, file, previousDigest, signal) {
   }
   const body = Buffer.concat(chunks);
   const digest = createHash('sha256').update(body).digest('hex');
-  if (digest === previousDigest) return digest;
+  return { body, digest };
+}
+
+export async function uploadSnapshot(config, body, signal) {
+  if (body.length > 256_000) throw new Error('Snapshot exceeds 256 KB.');
   const response = await fetch(config.endpoint, { method: 'POST', body, redirect: 'error',
     headers: { Authorization: `Bearer ${config.token}`, 'Content-Type': 'text/plain; charset=utf-8' },
     signal: AbortSignal.any([AbortSignal.timeout(20_000), ...(signal ? [signal] : [])]) });
-  if (!response.ok) throw new Error(`Upload returned HTTP ${response.status}. ${response.status === 401 ? 'Reconnect using /character connect.' : 'Check the snapshot, server and membership; the file will be retried.'}`);
+  if (!response.ok) {
+    const error = new Error(`Upload returned HTTP ${response.status}. ${response.status === 401 ? 'Reconnect using /character connect.' : 'Check the snapshot, server and membership; the file will be retried.'}`);
+    error.status = response.status;
+    throw error;
+  }
   await response.arrayBuffer();
+}
+
+export async function uploadFile(config, file, previousDigest, signal) {
+  const { body, digest } = await readSnapshotFile(file);
+  if (digest === previousDigest) return digest;
+  await uploadSnapshot(config, body, signal);
   return digest;
 }
 

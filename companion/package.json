@@ -1,0 +1,26 @@
+{
+  "name": "tome-companion",
+  "productName": "Tome Companion",
+  "version": "0.3.0",
+  "description": "Automatically share your WoW Forever character snapshots with Tome",
+  "author": "Krel",
+  "private": true,
+  "type": "module",
+  "main": "main.mjs",
+  "scripts": {
+    "start": "node stage.mjs && electron .",
+    "smoke": "node stage.mjs && electron smoke.mjs",
+    "package:mac": "node stage.mjs && electron-builder --mac zip --arm64 --x64 --publish never",
+    "package:win": "node stage.mjs && electron-builder --win nsis --x64 --publish never"
+  },
+  "devDependencies": { "electron": "45.2.3", "electron-builder": "26.18.0" },
+  "build": {
+    "appId": "com.krelhead.tome-companion",
+    "directories": { "output": "../artifacts/companion" },
+    "files": ["*.mjs", "*.cjs", "*.html", "*.css", "*.js", "lib/**", "resources/**", "!stage.mjs", "!smoke.mjs"],
+    "artifactName": "Tome-Companion-${version}-${os}-${arch}.${ext}",
+    "mac": { "category": "public.app-category.games", "identity": "-", "icon": "resources/book.png" },
+    "win": { "signExecutable": false, "icon": "resources/book.png" },
+    "nsis": { "oneClick": false, "perMachine": false, "allowToChangeInstallationDirectory": true, "createDesktopShortcut": true }
+  }
+}

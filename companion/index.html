@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src 'none'; base-uri 'none'; form-action 'none'; frame-src 'none'">
+  <title>Tome Companion</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main>
+    <header><img src="resources/book.png" alt="" width="64" height="64"><div><p class="eyebrow">YOUR CHARACTER, REMEMBERED</p><h1>Tome Companion</h1></div></header>
+    <p class="intro">Link once. Play normally. Your level, gear and talents will be ready when you ask Tome.</p>
+    <section class="status" aria-live="polite"><div class="status-heading"><span id="dot" class="dot"></span><strong id="status-title">Let’s get connected</strong></div><p id="status-message">Choose your game folder and link Discord to get started.</p><small id="last-sync"></small></section>
+    <section class="step"><div class="step-title"><span class="number">1</span><h2>Find your game</h2><button id="folder" class="secondary">Choose folder</button></div><p id="game-path" class="path">Looking for WoW Forever…</p><label for="account">WoW account</label><select id="account"><option value="">Log in to WoW once, then reopen this window</option></select><small>Only Tome snapshots from this account are shared, including new characters.</small></section>
+    <section class="step"><div class="step-title"><span class="number">2</span><h2>Link your Discord</h2><button id="connect" class="secondary">Open connection file</button></div><p>In your guild’s Discord, run <code>/character connect</code>. Download the private connection file and open it here. No editing needed.</p><p id="connection" class="connection">Not linked yet</p></section>
+    <section class="finish"><label class="check"><input id="startup" type="checkbox" checked> Start automatically when I sign in to this computer</label><p class="sharing">Level, equipment and talents from this WoW account will be shared with the linked Discord server. Tome can use them in guild answers.</p><button id="start" class="primary">Install addon &amp; start syncing</button><p id="error" role="alert" hidden></p><p id="startup-warning" class="warning" hidden></p></section>
+    <div id="controls" class="controls" hidden><button id="pause" class="secondary">Pause uploads</button><button id="disconnect" class="quiet">Disconnect this computer</button></div>
+    <footer>Restart WoW after first setup and enable <strong>Tome Snapshot</strong> in AddOns. Snapshots sync after normal logout or game exit; a UI reload also works. Closing this window keeps the companion syncing in the background. Open Tome Companion again to return to settings.</footer>
+    <p id="disconnect-help" class="warning" hidden>Uploads from this computer are stopped. Use /character disconnect in Discord to revoke the connection, or /character forget to delete shared snapshots.</p>
+  </main>
+  <script src="renderer.js"></script>
+</body>
+</html>

@@ -20,7 +20,7 @@ The official OpenAI SDK uses the Responses API with `store: false`. Chat, lookup
 
 See [the Tome product direction and architecture](docs/tome.md) for the intended experience, data sources, implementation boundaries, and unresolved decisions.
 
-**Character snapshots:** the Tome Snapshot addon captures level, equipment and talents for WoW Forever. Players share saved files through `/character import`; an optional authenticated desktop uploader syncs configured files after `/reload`, logout or exit. Tome can read linked characters and their latest snapshot, including age and unavailable-data indicators. See [installation and operator instructions](docs/character-snapshots.md). In-game compatibility still needs live validation.
+**Character snapshots:** Tome Companion for Windows/macOS installs the addon, finds a selected WoW account's characters, and runs in the background. Players link once with `/character connect`, then snapshots upload after normal logout or game exit—no routine commands or file imports. The companion requires a hosted HTTPS upload API; development installers lack trusted developer signing, and OS startup/in-game compatibility still need live validation. `/character import` remains a manual fallback. Tome reads the latest received level, gear and talent snapshot with its age and completeness. See [installation and operator instructions](docs/character-snapshots.md).
 
 **Not connected yet:** raid schedules/signups and a complete structured gear database. Calendar design remains deferred. The repository and package retain the `krelhead` name.
 

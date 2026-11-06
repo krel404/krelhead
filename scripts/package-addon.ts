@@ -10,7 +10,7 @@ try {
   cpSync('addon/TomeSnapshot', join(staging, 'TomeSnapshot'), { recursive: true });
   copyFileSync('docs/character-snapshots.md', join(staging, 'README.md'));
   copyFileSync('uploader/tome-uploader.mjs', join(staging, 'tome-uploader.mjs'));
-  const destination = join(out, 'TomeSnapshot-0.2.0.zip');
+  const destination = join(out, 'TomeSnapshot-0.3.0.zip');
   rmSync(destination, { force: true });
   execFileSync('zip', ['-qr', destination, 'TomeSnapshot', 'README.md', 'tome-uploader.mjs'], { cwd: staging });
   console.log(destination);

@@ -28,6 +28,8 @@ test('character controls are private and automatic-upload configuration requires
     const config = JSON.parse(attachment.attachment.toString('utf8'));
     assert.deepEqual(store.authenticate(config.token), { guildId: 'guild', userId: 'owner' });
     assert(!request.calls[1]!.payload.content.includes(config.token));
+    assert.match(request.calls[1]!.payload.content, /No file editing or manual imports/);
+    assert.equal(config.server, 'Your Discord server');
     await configured.command(interaction('disconnect').value);
     assert.equal(store.authenticate(config.token), undefined);
   } finally { store.close(); }

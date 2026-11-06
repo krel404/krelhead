@@ -86,7 +86,8 @@ test('upload tokens are hashed, scoped, rotated, revocable and expire', () => {
 
 test('desktop upload to authenticated API persists a snapshot, deduplicates, and enforces membership/revocation', async () => {
   // The player companion is deliberately standalone JavaScript, shipped without the bot's dependencies.
-  const { validateConfig, uploadFile } = await import('../uploader/tome-uploader.mjs' as string);
+  const { validateConfig, uploadFile, verifyConnection, readSnapshotFile, uploadSnapshot } = await import('../uploader/tome-uploader.mjs' as string);
+  const { SyncSession } = await import('../companion/sync.mjs' as string);
   const store = new SnapshotStore(':memory:');
   let member = true;
   const server = snapshotServer(store, async () => member);
@@ -99,12 +100,23 @@ test('desktop upload to authenticated API persists a snapshot, deduplicates, and
     const file = join(directory, 'TomeSnapshot.lua');
     writeFileSync(file, `TomeSnapshotExport = "TOME1:${Buffer.from(JSON.stringify(fixture())).toString('hex')}"`);
     const config = validateConfig({ endpoint, token, files: [file] });
+    assert.equal((await fetch(`${endpoint}/status`)).status, 401);
+    await verifyConnection(config);
     assert.throws(() => validateConfig({ ...config, endpoint: 'http://example.com/v1/snapshots' }));
     assert.throws(() => validateConfig({ ...config, endpoint: 'https://example.com/v1/snapshots?token=secret' }));
     assert.equal((await fetch(endpoint, { method: 'POST', body: '{}' })).status, 401);
     const digest = await uploadFile(config, file);
     assert.equal(store.list('guild', '', 'member').length, 1);
     assert.equal(await uploadFile(config, file, digest), digest);
+    const changed = fixture(); changed.capturedAt++; changed.character.level = 26;
+    writeFileSync(file, `TomeSnapshotExport = "TOME1:${Buffer.from(JSON.stringify(changed)).toString('hex')}"`);
+    const background = new SyncSession({ root: directory, account: 'chosen', connection: config }, {
+      discover: async () => [file], read: readSnapshotFile, upload: uploadSnapshot,
+    });
+    await background.tick();
+    assert.equal(store.list('guild', '', 'member')[0]?.level, 26);
+    assert(background.state.lastSyncedAt);
+    background.stop();
     member = false;
     await assert.rejects(uploadFile(config, file), /403/);
     member = true;
@@ -114,5 +126,6 @@ test('desktop upload to authenticated API persists a snapshot, deduplicates, and
     const limited = await fetch(endpoint, { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: '{}' });
     assert.equal(limited.status, 429); assert.equal(limited.headers.get('retry-after'), '60');
     store.revoke(owner); await assert.rejects(uploadFile(config, file), /401/);
+    await assert.rejects(verifyConnection(config), /could not be verified/);
   } finally { server.closeAllConnections(); await new Promise<void>(resolve => server.close(() => resolve())); store.close(); rmSync(directory, { recursive: true, force: true }); }
 });
